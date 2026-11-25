@@ -1,0 +1,12 @@
+// Command IDs and the listbox control ID shared by the resource and the C++.
+// Avkon owns the low range; 0x4000 keeps ours clear of it.
+
+enum TTaskAdminCommands
+    {
+    ETaskAdminListBox = 1,
+
+    ETaskAdminCmdRefresh = 0x4000,
+    ETaskAdminCmdCloseTask,
+    ETaskAdminCmdKillTask,
+    ETaskAdminCmdKillProcesses
+    };

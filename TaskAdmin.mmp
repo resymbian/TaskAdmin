@@ -1,0 +1,36 @@
+TARGET TaskAdmin.exe
+TARGETTYPE exe
+UID 0x100039CE 0xA0000D16
+
+// PowerMgmt is required to end or kill tasks this process did not create.
+CAPABILITY PowerMgmt LocalServices ReadUserData WriteUserData
+
+SOURCEPATH .
+SOURCE TaskAdmin.cpp
+
+SOURCEPATH .
+START RESOURCE TaskAdmin.rss
+HEADER
+TARGETPATH /resource/apps
+END
+
+SOURCEPATH .
+START RESOURCE TaskAdmin_reg.rss
+TARGETPATH /private/10003a3f/import/apps
+END
+
+SYSTEMINCLUDE \epoc32\include
+
+LIBRARY euser.lib
+LIBRARY efsrv.lib
+LIBRARY apparc.lib
+LIBRARY cone.lib
+LIBRARY ws32.lib
+LIBRARY apgrfx.lib
+LIBRARY eikcore.lib
+LIBRARY eikdlg.lib
+LIBRARY eikcoctl.lib
+LIBRARY eiksrv.lib
+LIBRARY avkon.lib
+LIBRARY aknnotify.lib
+LIBRARY bafl.lib

@@ -1,0 +1,127 @@
+name: build
+
+# Every build compiles the S60 target in the pinned Docker image, signs the
+# package with a throwaway development certificate and publishes the result.
+# On main the release tag is v<version from TaskAdmin.pkg>, so pushing a new
+# version updates that release instead of piling up dated ones; a v* tag pushed
+# by hand must agree with the PKG version.
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and sign SISX
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read version from the PKG
+        id: version
+        run: |
+          version="$(sed -n 's/^#{"TaskAdmin"},(0xA0000D16),\([0-9]*\),\([0-9]*\),\([0-9]*\)$/\1.\2.\3/p' TaskAdmin.pkg)"
+          if [ -z "$version" ]; then
+            echo "cannot parse the version out of TaskAdmin.pkg" >&2
+            exit 1
+          fi
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            tag="${GITHUB_REF_NAME#v}"
+            if [ "$tag" != "$version" ]; then
+              echo "tag $GITHUB_REF_NAME does not match TaskAdmin.pkg version $version" >&2
+              exit 1
+            fi
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "TaskAdmin $version"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build the S60 toolchain image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          load: true
+          tags: taskadmin-sdk:latest
+          # The SDK is a 3.7 GB download from the Internet Archive; rebuilding
+          # it on every push would take longer than the compile it supports.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Compile, package and sign
+        run: |
+          mkdir -p out
+          chmod 777 out
+          docker run --rm \
+            -v "$PWD:/src:ro" \
+            -v "$PWD/out:/out" \
+            taskadmin-sdk:latest
+          cd out
+          sha256sum TaskAdmin.sisx > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Prove the SISX is signed
+        run: |
+          docker run --rm --entrypoint signsis \
+            -v "$PWD/out:/out:ro" taskadmin-sdk:latest \
+            -o /out/TaskAdmin.sisx | tee /tmp/signature.txt
+          grep -q "Issued by" /tmp/signature.txt
+
+      - name: Upload the package
+        uses: actions/upload-artifact@v4
+        with:
+          name: TaskAdmin-sisx
+          path: |
+            out/TaskAdmin.sisx
+            out/SHA256SUMS
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download the package
+        uses: actions/download-artifact@v4
+        with:
+          name: TaskAdmin-sisx
+          path: dist
+
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            TAG="$GITHUB_REF_NAME"
+          else
+            TAG="v$VERSION"
+          fi
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Updating existing release $TAG"
+            gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            echo "Creating release $TAG"
+            gh release create "$TAG" dist/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "TaskAdmin $VERSION" \
+              --notes-file .github/release-notes.md
+          fi

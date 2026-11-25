@@ -1,0 +1,19 @@
+# Build output: the .sisx is published as a release asset, not committed.
+out/
+*.sis
+*.sisx
+
+# Generated development signing material.
+*.key
+*.cer
+*.p12
+*.pfx
+Chain/
+discofi.dsaparam
+
+# OS / editor leftovers.
+.DS_Store
+Thumbs.db
+*~
+*.swp
+*.bak

@@ -1,0 +1,58 @@
+// Application caption and the Options menu for the running-task list.
+
+#include <appinfo.rh>
+#include <eikon.rh>
+#include <avkon.rh>
+#include <avkon.rsg>
+#include "TaskAdmin.hrh"
+
+RESOURCE LOCALISABLE_APP_INFO r_localisable_app_info
+    {
+    short_caption = "TaskAdm";
+    caption_and_icon =
+        CAPTION_AND_ICON_INFO
+            {
+            caption = "Task Admin";
+            number_of_icons = 0;
+            icon_file = "";
+            };
+    }
+
+RESOURCE MENU_PANE r_taskadmin_menu
+    {
+    items =
+        {
+        MENU_ITEM { command = ETaskAdminCmdRefresh; txt = "Actualizar"; },
+        MENU_ITEM { command = ETaskAdminCmdCloseTask; txt = "Cerrar tarea"; },
+        MENU_ITEM { command = ETaskAdminCmdKillTask; txt = "Matar tarea"; },
+        MENU_ITEM { command = ETaskAdminCmdKillProcesses;
+                    txt = "Matar procesos"; },
+        MENU_ITEM { command = EAknCmdExit; txt = "Salir"; }
+        };
+    }
+
+RESOURCE MENU_BAR r_taskadmin_menubar
+    {
+    titles =
+        {
+        MENU_TITLE { menu_pane = r_taskadmin_menu; }
+        };
+    }
+
+RESOURCE DIALOG r_taskadmin_select_dialog
+    {
+    flags = EAknDialogSelectionList;
+    buttons = R_AVKON_SOFTKEYS_OPTIONS_BACK;
+    items =
+        {
+        DLG_LINE
+            {
+            type = EAknCtSingleListBox;
+            id = ETaskAdminListBox;
+            control = LISTBOX
+                {
+                flags = EAknListBoxSelectionList;
+                };
+            }
+        };
+    }

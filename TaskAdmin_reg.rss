@@ -1,0 +1,13 @@
+// Application-menu registration. Without this resource the EXE installs but
+// never appears in the menu, so there is no way to open the task list.
+
+#include <appinfo.rh>
+
+UID2 KUidAppRegistrationResourceFile
+UID3 0xA0000D16
+
+RESOURCE APP_REGISTRATION_INFO
+    {
+    app_file = "TaskAdmin";
+    localisable_resource_file = "\\resource\\apps\\TaskAdmin";
+    }

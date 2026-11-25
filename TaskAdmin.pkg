@@ -1,0 +1,15 @@
+&EN
+#{"TaskAdmin"},(0xA0000D16),1,0,0
+
+; S60 3.1 (E51) and S60 3.2.
+[0x102032BE],0,0,0,{"S60ProductID"}
+[0x102752AE],0,0,0,{"S60ProductID"}
+
+%{"Resymbian"}
+:"Resymbian"
+
+; Self-signed: the phone needs the installserver/Open4All patches. PowerMgmt
+; is requested by the EXE and lets it close tasks owned by other processes.
+"TaskAdmin.exe"-"!:\sys\bin\TaskAdmin.exe"
+"TaskAdmin.rsc"-"!:\resource\apps\TaskAdmin.rsc"
+"TaskAdmin_reg.rsc"-"!:\private\10003a3f\import\apps\TaskAdmin_reg.rsc"
