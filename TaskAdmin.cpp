@@ -18,6 +18,7 @@
 
 #include <e32base.h>
 #include <e32std.h>
+#include <e32capability.h>
 #include <f32file.h>
 #include <badesca.h>
 #include <eiklbo.h>
@@ -262,6 +263,8 @@ void CTaskAdminAppUi::ConstructL()
     iPendingIndex = 0;
     iQuit = EFalse;
 
+    LogLine(RProcess().HasCapability(ECapabilityPowerMgmt) ?
+        _L("powermgmt=yes") : _L("powermgmt=no"));
     LogLine(_L("start"));
     ShowListL();
 }
@@ -477,6 +480,13 @@ void CTaskAdminAppUi::CloseTaskL(const TTaskInfo& aTask)
 /** Hard close of the window group, which also kills its owning process. */
 void CTaskAdminAppUi::KillTaskL(const TTaskInfo& aTask)
 {
+    if (!RProcess().HasCapability(ECapabilityPowerMgmt))
+    {
+        ShowNoteL(_L("PowerMgmt no disponible: usa Cerrar tarea"));
+        LogLine(_L("kill denied"));
+        return;
+    }
+
     TApaTask task(iEikonEnv->WsSession());
     task.SetWgId(aTask.iWgId);
     if (!task.Exists())
@@ -516,6 +526,13 @@ static TBool IsProtectedProcess(const TDesC& aName)
  */
 void CTaskAdminAppUi::KillProcessesL(const TTaskInfo& aTask)
 {
+    if (!RProcess().HasCapability(ECapabilityPowerMgmt))
+    {
+        ShowNoteL(_L("PowerMgmt no disponible: usa Cerrar tarea"));
+        LogLine(_L("kill denied"));
+        return;
+    }
+
     if (aTask.iProcess.Length() == 0)
     {
         ShowNoteL(_L("This task has no process name"));
@@ -585,12 +602,11 @@ static void LogLine(const TDesC& aText)
     if (fs.Connect() != KErrNone) return;
 
     RFile file;
-    TInt error = file.Open(fs, _L("C:\\Data\\TaskAdmin.log"),
-        EFileWrite | EFileShareAny);
+    const TInt KFileMode = EFileRead | EFileWrite | EFileShareAny;
+    TInt error = file.Open(fs, _L("C:\\Data\\TaskAdmin.log"), KFileMode);
     if (error == KErrNotFound)
         {
-        error = file.Create(fs, _L("C:\\Data\\TaskAdmin.log"),
-            EFileWrite | EFileShareAny);
+        error = file.Create(fs, _L("C:\\Data\\TaskAdmin.log"), KFileMode);
         }
 
     if (error == KErrNone)

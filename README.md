@@ -10,8 +10,8 @@ way to stop a background agent from a phone menu.
 
 ## Install
 
-1. The phone needs the **installserver** and **Open4All** patches: the SISX is
-   self-signed.
+1. The SISX is self-signed and now requests only user capabilities, so no
+   special patches are needed to install or launch it.
 2. Install `TaskAdmin.sisx`. UID3 is `0xA0000D16`, so it is a separate app from
    NotiHelper (`0xA0000D15`).
 3. Open **Task Admin** from the application menu.
@@ -42,10 +42,12 @@ window-group id, PID and caption, plus `closed`, `killed task`,
 
 ## Capabilities
 
-The EXE requests `PowerMgmt LocalServices ReadUserData WriteUserData`.
-`PowerMgmt` is the capability that permits ending a process this app did not
-create. On an unpatched phone the installer will reject the package; that is
-expected and cannot be worked around from Java or from a self-signed SISX.
+The EXE requests only `LocalServices ReadUserData WriteUserData`. `Cerrar
+tarea` works with those. `Matar tarea` and `Matar procesos` need `PowerMgmt`,
+which a self-signed certificate cannot grant: including it made the loader
+refuse to start the EXE on an unpatched phone, so it was removed. The commands
+remain visible and show `PowerMgmt no disponible` when tapped. A developer
+certificate that grants `PowerMgmt` is needed to enable real killing.
 
 ## Build
 

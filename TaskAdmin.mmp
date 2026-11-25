@@ -2,8 +2,11 @@ TARGET TaskAdmin.exe
 TARGETTYPE exe
 UID 0x100039CE 0xA0000D16
 
-// PowerMgmt is required to end or kill tasks this process did not create.
-CAPABILITY PowerMgmt LocalServices ReadUserData WriteUserData
+// No system capabilities: a self-signed SISX cannot be granted PowerMgmt on an
+// unpatched phone, and the loader then refuses to start the EXE at all.
+// Kill commands stay in the menu but report the missing capability instead of
+// panicking; EndTask works without it.
+CAPABILITY LocalServices ReadUserData WriteUserData
 
 SOURCEPATH .
 SOURCE TaskAdmin.cpp

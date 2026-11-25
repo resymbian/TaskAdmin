@@ -1,4 +1,16 @@
-# TaskAdmin 1.0.1
+# TaskAdmin 1.0.2
+
+Removes `PowerMgmt` from the EXE. A self-signed SISX cannot be granted that
+system capability on an unpatched phone, and the loader then refuses to start
+the process at all - the icon appeared but nothing happened. **Cerrar tarea**
+works without it; **Matar tarea** and **Matar procesos** now show
+`PowerMgmt no disponible` instead of panicking. To get real kill support the
+package must be signed with a developer certificate that grants `PowerMgmt`.
+
+The resource-path and deferred-exit fixes from 1.0.1 are kept, and the log now
+records `powermgmt=yes/no` right after `start`.
+
+## 1.0.1
 
 Fixes the startup "system error": the UI resource is now loaded explicitly from
 `\resource\apps\TaskAdmin.rsc` instead of the default `\sys\bin\TaskAdmin.rsc`,
