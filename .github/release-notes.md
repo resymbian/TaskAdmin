@@ -1,4 +1,13 @@
-# TaskAdmin 1.0.0
+# TaskAdmin 1.0.1
+
+Fixes the startup "system error": the UI resource is now loaded explicitly from
+`\resource\apps\TaskAdmin.rsc` instead of the default `\sys\bin\TaskAdmin.rsc`,
+which is not where the SISX installs it. Exit is deferred to the idle loop so
+the AppUi is fully constructed first, and startup steps are logged to
+`C:\Data\TaskAdmin.log` for further diagnosis (`main`, `construct`, `base done`,
+`start`, `tasks=N`, `dialog new`, `dialog execute`, `dialog done`).
+
+## 1.0.0
 
 Small task manager for the Nokia E51 / S60 3rd Edition FP1.
 

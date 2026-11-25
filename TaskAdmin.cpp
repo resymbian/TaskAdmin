@@ -75,6 +75,7 @@ private:
 class CTaskAdminAppUi : public CAknAppUi
 {
 public:
+    CTaskAdminAppUi();
     void ConstructL();
     ~CTaskAdminAppUi();
 
@@ -92,9 +93,12 @@ private:
     void KillTaskL(const TTaskInfo& aTask);
     void KillProcessesL(const TTaskInfo& aTask);
     void ShowNoteL(const TDesC& aText);
+    void ScheduleExitL();
+    static TInt ExitCallback(TAny* aSelf);
 
     RArray<TTaskInfo> iTasks;
     CDesCArrayFlat* iCaptions;
+    CIdle* iExitIdle;
     TInt iPendingCommand;
     TInt iPendingIndex;
     TBool iQuit;
@@ -105,6 +109,10 @@ class CTaskAdminApplication : public CAknApplication
 {
 public:
     static CApaApplication* NewApplication();
+
+    // The default would look beside the EXE in \sys\bin; our resource is
+    // installed under \resource\apps with the other S60 UI resources.
+    TFileName ResourceFileName() const;
 
 private:
     TUid AppDllUid() const;
@@ -137,6 +145,12 @@ CApaApplication* CTaskAdminApplication::NewApplication()
 TUid CTaskAdminApplication::AppDllUid() const
 {
     return TUid::Uid(0xA0000D16);
+}
+
+TFileName CTaskAdminApplication::ResourceFileName() const
+{
+    // Same basename as the EXE, but in the standard resource directory.
+    return TFileName(_L("\\resource\\apps\\TaskAdmin.rsc"));
 }
 
 CApaDocument* CTaskAdminApplication::CreateDocumentL()
@@ -232,9 +246,16 @@ void CTaskAdminDialog::ProcessCommandL(TInt aCommand)
 // AppUi
 // ---------------------------------------------------------------------------
 
+CTaskAdminAppUi::CTaskAdminAppUi()
+    : iExitIdle(NULL)
+{
+}
+
 void CTaskAdminAppUi::ConstructL()
 {
+    LogLine(_L("construct"));
     BaseConstructL();
+    LogLine(_L("base done"));
 
     iCaptions = new (ELeave) CDesCArrayFlat(16);
     iPendingCommand = 0;
@@ -247,6 +268,7 @@ void CTaskAdminAppUi::ConstructL()
 
 CTaskAdminAppUi::~CTaskAdminAppUi()
 {
+    delete iExitIdle;
     iTasks.Close();
     delete iCaptions;
 }
@@ -350,9 +372,12 @@ void CTaskAdminAppUi::ShowListL()
         }
 
         TInt index = 0;
+        LogLine(_L("dialog new"));
         CTaskAdminDialog* dialog = CTaskAdminDialog::NewL(index, iCaptions,
             *this);
+        LogLine(_L("dialog execute"));
         dialog->ExecuteLD(R_TASKADMIN_SELECT_DIALOG);
+        LogLine(_L("dialog done"));
 
         if (iPendingCommand == 0)
         {
@@ -380,7 +405,22 @@ void CTaskAdminAppUi::ShowListL()
         }
     }
 
-    if (iQuit) Exit();
+    if (iQuit) ScheduleExitL();
+}
+
+void CTaskAdminAppUi::ScheduleExitL()
+{
+    // Exit() from inside ConstructL can tear down the AppUi before the
+    // framework has finished starting it. Defer until the idle loop runs.
+    if (iExitIdle != NULL) return;
+    iExitIdle = CIdle::NewL(CActive::EPriorityIdle);
+    iExitIdle->Start(TCallBack(ExitCallback, this));
+}
+
+TInt CTaskAdminAppUi::ExitCallback(TAny* aSelf)
+{
+    ((CTaskAdminAppUi*) aSelf)->Exit();
+    return EFalse;
 }
 
 void CTaskAdminAppUi::RunActionL(TInt aCommand, TInt aIndex)
@@ -573,5 +613,6 @@ static void LogLine(const TDesC& aText)
 
 GLDEF_C TInt E32Main()
 {
+    LogLine(_L("main"));
     return EikStart::RunApplication(CTaskAdminApplication::NewApplication);
 }
