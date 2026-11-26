@@ -2,6 +2,7 @@
 // never appears in the menu, so there is no way to open the task list.
 
 #include <appinfo.rh>
+#include <TaskAdmin.rsg>
 
 UID2 KUidAppRegistrationResourceFile
 UID3 0xA0000D16
@@ -10,4 +11,5 @@ RESOURCE APP_REGISTRATION_INFO
     {
     app_file = "TaskAdmin";
     localisable_resource_file = "\\resource\\apps\\TaskAdmin";
+    localisable_resource_id = R_LOCALISABLE_APP_INFO;
     }

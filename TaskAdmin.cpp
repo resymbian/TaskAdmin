@@ -96,9 +96,11 @@ private:
     void ShowNoteL(const TDesC& aText);
     void ScheduleExitL();
     static TInt ExitCallback(TAny* aSelf);
+    static TInt StartCallback(TAny* aSelf);
 
     RArray<TTaskInfo> iTasks;
     CDesCArrayFlat* iCaptions;
+    CIdle* iStartIdle;
     CIdle* iExitIdle;
     TInt iPendingCommand;
     TInt iPendingIndex;
@@ -238,7 +240,7 @@ void CTaskAdminDialog::ProcessCommandL(TInt aCommand)
 // ---------------------------------------------------------------------------
 
 CTaskAdminAppUi::CTaskAdminAppUi()
-    : iExitIdle(NULL)
+    : iStartIdle(NULL), iExitIdle(NULL)
 {
 }
 
@@ -256,11 +258,27 @@ void CTaskAdminAppUi::ConstructL()
     LogLine(RProcess().HasCapability(ECapabilityPowerMgmt) ?
         _L("powermgmt=yes") : _L("powermgmt=no"));
     LogLine(_L("start"));
-    ShowListL();
+
+    iStartIdle = CIdle::NewL(CActive::EPriorityIdle);
+    iStartIdle->Start(TCallBack(StartCallback, this));
+}
+
+TInt CTaskAdminAppUi::StartCallback(TAny* aSelf)
+{
+    CTaskAdminAppUi* self = static_cast<CTaskAdminAppUi*>(aSelf);
+    delete self->iStartIdle;
+    self->iStartIdle = NULL;
+    TRAPD(error, self->ShowListL());
+    if (error != KErrNone)
+    {
+        self->ScheduleExitL();
+    }
+    return EFalse;
 }
 
 CTaskAdminAppUi::~CTaskAdminAppUi()
 {
+    delete iStartIdle;
     delete iExitIdle;
     iTasks.Close();
     delete iCaptions;
@@ -340,7 +358,9 @@ void CTaskAdminAppUi::RefreshTasksL()
         info.iCaption.Copy(caption);
         info.iProcess.Copy(processName);
         User::LeaveIfError(iTasks.Append(info));
-        iCaptions->AppendL(caption);
+        TBuf<KMaxCaptionLength + 2> itemText(_L("\t"));
+        itemText.Append(caption);
+        iCaptions->AppendL(itemText);
     }
 
     CleanupStack::PopAndDestroy(groups);
