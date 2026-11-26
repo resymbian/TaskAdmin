@@ -21,16 +21,16 @@
 #include <e32capability.h>
 #include <f32file.h>
 #include <badesca.h>
-#include <eiklbo.h>
+#include <aknlists.h>
 #include <aknglobalnote.h>
 #include <avkon.hrh>
 #include <aknapp.h>
 #include <akndoc.h>
 #include <aknappui.h>
-#include <aknselectionlist.h>
 #include <apgtask.h>
 #include <w32std.h>
 #include <eikstart.h>
+#include <coecntrl.h>
 
 #include "TaskAdmin.hrh"
 #include <TaskAdmin.rsg>
@@ -38,39 +38,44 @@
 const TInt KMaxCaptionLength = 128;
 const TInt KMaxProcessLength = 64;
 
-class CTaskAdminAppUi;
+static void LogLine(const TDesC& aText);
+static TBool IsProtectedProcess(const TDesC& aName);
 
 /** One line of the task list, with enough identity to act on it later. */
 struct TTaskInfo
-    {
+{
     TInt iWgId;
     TThreadId iThreadId;
     TUint iPid;
     TBuf<KMaxCaptionLength> iCaption;
     TBuf<KMaxProcessLength> iProcess;
-    };
-
-static void LogLine(const TDesC& aText);
+};
 
 /**
- * Selection list with our own Options menu. It only queues a command and
- * exits; the AppUi performs the action after the dialog is gone, so a task
- * cannot be killed while its own dialog still owns the screen.
+ * Main view container containing a standard CAknSingleStyleListBox.
  */
-class CTaskAdminDialog : public CAknSelectionListDialog
+class CTaskAdminContainer : public CCoeControl, public MEikListBoxObserver
 {
 public:
-    static CTaskAdminDialog* NewL(TInt& aIndex, MDesCArray* aArray,
-        CTaskAdminAppUi& aAppUi);
+    static CTaskAdminContainer* NewL(const TRect& aRect, CDesCArrayFlat* aCaptions);
+    ~CTaskAdminContainer();
 
-    void ProcessCommandL(TInt aCommand);
+    void ConstructL(const TRect& aRect, CDesCArrayFlat* aCaptions);
+    TInt CurrentIndex() const;
+    void UpdateListL();
+
+    // From CCoeControl
+    TInt CountComponentControls() const;
+    CCoeControl* ComponentControl(TInt aIndex) const;
+    void SizeChanged();
+    TKeyResponse OfferKeyEventL(const TKeyEvent& aKeyEvent, TEventCode aType);
+
+    // From MEikListBoxObserver
+    void HandleListBoxEventL(CEikListBox* aListBox, TListBoxEvent aEventType);
 
 private:
-    CTaskAdminDialog(TInt& aIndex, MDesCArray* aArray,
-        CTaskAdminAppUi& aAppUi);
-    void ConstructL();
-
-    CTaskAdminAppUi& iAppUi;
+    CAknSingleStyleListBox* iListBox;
+    CDesCArrayFlat* iCaptions;
 };
 
 class CTaskAdminAppUi : public CAknAppUi
@@ -81,12 +86,7 @@ public:
     ~CTaskAdminAppUi();
 
     void HandleCommandL(TInt aCommand);
-
-    void QueueAction(TInt aCommand, TInt aIndex);
-    void RequestQuit();
-
     void RefreshTasksL();
-    void ShowListL();
 
 private:
     void RunActionL(TInt aCommand, TInt aIndex);
@@ -94,17 +94,10 @@ private:
     void KillTaskL(const TTaskInfo& aTask);
     void KillProcessesL(const TTaskInfo& aTask);
     void ShowNoteL(const TDesC& aText);
-    void ScheduleExitL();
-    static TInt ExitCallback(TAny* aSelf);
-    static TInt StartCallback(TAny* aSelf);
 
     RArray<TTaskInfo> iTasks;
     CDesCArrayFlat* iCaptions;
-    CIdle* iStartIdle;
-    CIdle* iExitIdle;
-    TInt iPendingCommand;
-    TInt iPendingIndex;
-    TBool iQuit;
+    CTaskAdminContainer* iContainer;
 };
 
 /** Application/document boilerplate: a real GUI app gets a task-list entry. */
@@ -131,6 +124,100 @@ private:
     CTaskAdminDocument(CEikApplication& aApp);
     void ConstructL();
 };
+
+// ---------------------------------------------------------------------------
+// Container implementation
+// ---------------------------------------------------------------------------
+
+CTaskAdminContainer* CTaskAdminContainer::NewL(const TRect& aRect, CDesCArrayFlat* aCaptions)
+{
+    CTaskAdminContainer* self = new (ELeave) CTaskAdminContainer;
+    CleanupStack::PushL(self);
+    self->ConstructL(aRect, aCaptions);
+    CleanupStack::Pop(self);
+    return self;
+}
+
+CTaskAdminContainer::~CTaskAdminContainer()
+{
+    delete iListBox;
+}
+
+void CTaskAdminContainer::ConstructL(const TRect& aRect, CDesCArrayFlat* aCaptions)
+{
+    CreateWindowL();
+    iCaptions = aCaptions;
+
+    iListBox = new (ELeave) CAknSingleStyleListBox;
+    iListBox->ConstructL(this, EAknListBoxSelectionList);
+    iListBox->SetContainerWindowL(*this);
+
+    iListBox->CreateScrollBarFrameL(ETrue);
+    iListBox->ScrollBarFrame()->SetScrollBarVisibilityL(
+        CEikScrollBarFrame::EOff, CEikScrollBarFrame::EAuto);
+
+    iListBox->Model()->SetItemTextArray(iCaptions);
+    iListBox->Model()->SetOwnershipType(ELbmDoesNotOwnItemArray);
+
+    iListBox->SetListBoxObserver(this);
+
+    SetRect(aRect);
+    ActivateL();
+}
+
+TInt CTaskAdminContainer::CountComponentControls() const
+{
+    return iListBox ? 1 : 0;
+}
+
+CCoeControl* CTaskAdminContainer::ComponentControl(TInt aIndex) const
+{
+    if (aIndex == 0) return iListBox;
+    return NULL;
+}
+
+void CTaskAdminContainer::SizeChanged()
+{
+    if (iListBox)
+    {
+        iListBox->SetRect(Rect());
+    }
+}
+
+TKeyResponse CTaskAdminContainer::OfferKeyEventL(const TKeyEvent& aKeyEvent, TEventCode aType)
+{
+    if (iListBox)
+    {
+        return iListBox->OfferKeyEventL(aKeyEvent, aType);
+    }
+    return EKeyWasNotConsumed;
+}
+
+void CTaskAdminContainer::HandleListBoxEventL(CEikListBox* /*aListBox*/, TListBoxEvent /*aEventType*/)
+{
+}
+
+TInt CTaskAdminContainer::CurrentIndex() const
+{
+    if (iListBox)
+    {
+        return iListBox->CurrentItemIndex();
+    }
+    return -1;
+}
+
+void CTaskAdminContainer::UpdateListL()
+{
+    if (iListBox)
+    {
+        iListBox->HandleItemAdditionL();
+        if (iCaptions->Count() > 0 && iListBox->CurrentItemIndex() < 0)
+        {
+            iListBox->SetCurrentItemIndex(0);
+        }
+        DrawDeferred();
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Application and document
@@ -185,62 +272,11 @@ CEikAppUi* CTaskAdminDocument::CreateAppUiL()
 }
 
 // ---------------------------------------------------------------------------
-// Dialog
-// ---------------------------------------------------------------------------
-
-CTaskAdminDialog::CTaskAdminDialog(TInt& aIndex, MDesCArray* aArray,
-    CTaskAdminAppUi& aAppUi)
-    : CAknSelectionListDialog(aIndex, aArray, NULL), iAppUi(aAppUi)
-{
-}
-
-void CTaskAdminDialog::ConstructL()
-{
-    CAknSelectionListDialog::ConstructL(R_TASKADMIN_MENUBAR);
-}
-
-CTaskAdminDialog* CTaskAdminDialog::NewL(TInt& aIndex, MDesCArray* aArray,
-    CTaskAdminAppUi& aAppUi)
-{
-    CTaskAdminDialog* self = new (ELeave) CTaskAdminDialog(aIndex, aArray,
-        aAppUi);
-    CleanupStack::PushL(self);
-    self->ConstructL();
-    CleanupStack::Pop(self);
-    return self;
-}
-
-void CTaskAdminDialog::ProcessCommandL(TInt aCommand)
-{
-    switch (aCommand)
-    {
-    case ETaskAdminCmdRefresh:
-    case ETaskAdminCmdCloseTask:
-    case ETaskAdminCmdKillTask:
-    case ETaskAdminCmdKillProcesses:
-        {
-        TInt selected = 0;
-        if (ListBox() != NULL) selected = ListBox()->CurrentItemIndex();
-        iAppUi.QueueAction(aCommand, selected);
-        TryExitL(EAknSoftkeyCancel);
-        break;
-        }
-    case EAknCmdExit:
-        iAppUi.RequestQuit();
-        TryExitL(EAknSoftkeyCancel);
-        break;
-    default:
-        CAknSelectionListDialog::ProcessCommandL(aCommand);
-        break;
-    }
-}
-
-// ---------------------------------------------------------------------------
 // AppUi
 // ---------------------------------------------------------------------------
 
 CTaskAdminAppUi::CTaskAdminAppUi()
-    : iStartIdle(NULL), iExitIdle(NULL)
+    : iContainer(NULL)
 {
 }
 
@@ -251,59 +287,75 @@ void CTaskAdminAppUi::ConstructL()
     LogLine(_L("base done"));
 
     iCaptions = new (ELeave) CDesCArrayFlat(16);
-    iPendingCommand = 0;
-    iPendingIndex = 0;
-    iQuit = EFalse;
 
     LogLine(RProcess().HasCapability(ECapabilityPowerMgmt) ?
         _L("powermgmt=yes") : _L("powermgmt=no"));
-    LogLine(_L("start"));
 
-    iStartIdle = CIdle::NewL(CActive::EPriorityIdle);
-    iStartIdle->Start(TCallBack(StartCallback, this));
-}
+    RefreshTasksL();
 
-TInt CTaskAdminAppUi::StartCallback(TAny* aSelf)
-{
-    CTaskAdminAppUi* self = static_cast<CTaskAdminAppUi*>(aSelf);
-    delete self->iStartIdle;
-    self->iStartIdle = NULL;
-    TRAPD(error, self->ShowListL());
-    if (error != KErrNone)
-    {
-        self->ScheduleExitL();
-    }
-    return EFalse;
+    iContainer = CTaskAdminContainer::NewL(ClientRect(), iCaptions);
+    AddToStackL(iContainer);
+    LogLine(_L("container ready"));
 }
 
 CTaskAdminAppUi::~CTaskAdminAppUi()
 {
-    delete iStartIdle;
-    delete iExitIdle;
+    if (iContainer)
+    {
+        RemoveFromStack(iContainer);
+        delete iContainer;
+    }
     iTasks.Close();
     delete iCaptions;
 }
 
 void CTaskAdminAppUi::HandleCommandL(TInt aCommand)
 {
-    if (aCommand == EAknCmdExit)
+    switch (aCommand)
     {
-        RequestQuit();
+    case ETaskAdminCmdRefresh:
+        RefreshTasksL();
+        if (iContainer) iContainer->UpdateListL();
+        break;
+
+    case ETaskAdminCmdCloseTask:
+    case ETaskAdminCmdKillTask:
+    case ETaskAdminCmdKillProcesses:
+        if (iContainer && iTasks.Count() > 0)
+        {
+            TInt index = iContainer->CurrentIndex();
+            if (index >= 0 && index < iTasks.Count())
+            {
+                TRAPD(actionErr, RunActionL(aCommand, index));
+                if (actionErr != KErrNone)
+                {
+                    TBuf<64> msg(_L("Error "));
+                    msg.AppendNum(actionErr);
+                    ShowNoteL(msg);
+                }
+                RefreshTasksL();
+                iContainer->UpdateListL();
+            }
+            else
+            {
+                ShowNoteL(_L("Selecciona una tarea"));
+            }
+        }
+        else
+        {
+            ShowNoteL(_L("No hay tareas"));
+        }
+        break;
+
+    case EAknCmdExit:
+    case EEikCmdExit:
         Exit();
-        return;
+        break;
+
+    default:
+        CAknAppUi::HandleCommandL(aCommand);
+        break;
     }
-    CAknAppUi::HandleCommandL(aCommand);
-}
-
-void CTaskAdminAppUi::QueueAction(TInt aCommand, TInt aIndex)
-{
-    iPendingCommand = aCommand;
-    iPendingIndex = aIndex;
-}
-
-void CTaskAdminAppUi::RequestQuit()
-{
-    iQuit = ETrue;
 }
 
 void CTaskAdminAppUi::RefreshTasksL()
@@ -358,6 +410,7 @@ void CTaskAdminAppUi::RefreshTasksL()
         info.iCaption.Copy(caption);
         info.iProcess.Copy(processName);
         User::LeaveIfError(iTasks.Append(info));
+
         TBuf<KMaxCaptionLength + 2> itemText(_L("\t"));
         itemText.Append(caption);
         iCaptions->AppendL(itemText);
@@ -366,74 +419,14 @@ void CTaskAdminAppUi::RefreshTasksL()
     CleanupStack::PopAndDestroy(groups);
     CleanupStack::PopAndDestroy(&ws);
 
+    if (iCaptions->Count() == 0)
+    {
+        iCaptions->AppendL(_L("\t(No running tasks)"));
+    }
+
     TBuf<64> line(_L("tasks="));
     line.AppendNum(iTasks.Count());
     LogLine(line);
-}
-
-void CTaskAdminAppUi::ShowListL()
-{
-    while (!iQuit)
-    {
-        RefreshTasksL();
-
-        if (iTasks.Count() == 0)
-        {
-            ShowNoteL(_L("No running tasks found"));
-            iQuit = ETrue;
-            break;
-        }
-
-        TInt index = 0;
-        LogLine(_L("dialog new"));
-        CTaskAdminDialog* dialog = CTaskAdminDialog::NewL(index, iCaptions,
-            *this);
-        LogLine(_L("dialog execute"));
-        dialog->ExecuteLD(R_TASKADMIN_SELECT_DIALOG);
-        LogLine(_L("dialog done"));
-
-        if (iPendingCommand == 0)
-        {
-            iQuit = ETrue;
-            break;
-        }
-
-        TInt command = iPendingCommand;
-        TInt selected = iPendingIndex;
-        iPendingCommand = 0;
-        iPendingIndex = 0;
-
-        if (command == ETaskAdminCmdRefresh) continue;
-
-        TRAPD(error, RunActionL(command, selected));
-        if (error != KErrNone)
-        {
-            TBuf<96> note(_L("TaskAdmin error "));
-            note.AppendNum(error);
-            TRAPD(noteError, ShowNoteL(note));
-            (void) noteError;
-            TBuf<96> log(_L("error="));
-            log.AppendNum(error);
-            LogLine(log);
-        }
-    }
-
-    if (iQuit) ScheduleExitL();
-}
-
-void CTaskAdminAppUi::ScheduleExitL()
-{
-    // Exit() from inside ConstructL can tear down the AppUi before the
-    // framework has finished starting it. Defer until the idle loop runs.
-    if (iExitIdle != NULL) return;
-    iExitIdle = CIdle::NewL(CActive::EPriorityIdle);
-    iExitIdle->Start(TCallBack(ExitCallback, this));
-}
-
-TInt CTaskAdminAppUi::ExitCallback(TAny* aSelf)
-{
-    ((CTaskAdminAppUi*) aSelf)->Exit();
-    return EFalse;
 }
 
 void CTaskAdminAppUi::RunActionL(TInt aCommand, TInt aIndex)
@@ -562,32 +555,32 @@ void CTaskAdminAppUi::KillProcessesL(const TTaskInfo& aTask)
     TUint self = (TUint) RProcess().Id();
 
     for (;;)
-        {
+    {
         if (finder.Next(name) != KErrNone) break;
 
         RProcess process;
         if (process.Open(finder) != KErrNone) continue;
 
         if ((TUint) process.Id() == self || IsProtectedProcess(process.Name()))
-            {
+        {
             skipped++;
-            }
+        }
         else
-            {
+        {
             process.Kill(0);
             killed++;
-            }
-        process.Close();
         }
+        process.Close();
+    }
 
     TBuf<160> note(_L("Killed "));
     note.AppendNum(killed);
     note.Append(_L(" process(es)"));
     if (skipped > 0)
-        {
+    {
         note.Append(_L(", skipped "));
         note.AppendNum(skipped);
-        }
+    }
     ShowNoteL(note);
 
     TBuf<64> log(_L("killed processes="));
@@ -615,12 +608,12 @@ static void LogLine(const TDesC& aText)
     const TInt KFileMode = EFileRead | EFileWrite | EFileShareAny;
     TInt error = file.Open(fs, _L("C:\\Data\\TaskAdmin.log"), KFileMode);
     if (error == KErrNotFound)
-        {
+    {
         error = file.Create(fs, _L("C:\\Data\\TaskAdmin.log"), KFileMode);
-        }
+    }
 
     if (error == KErrNone)
-        {
+    {
         TInt size = 0;
         file.Size(size);
         file.Seek(ESeekEnd, size);
@@ -632,7 +625,7 @@ static void LogLine(const TDesC& aText)
         file.Write(bytes);
         CleanupStack::PopAndDestroy(ascii);
         file.Close();
-        }
+    }
 
     fs.Close();
 }

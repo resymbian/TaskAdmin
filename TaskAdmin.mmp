@@ -33,6 +33,7 @@ LIBRARY apgrfx.lib
 LIBRARY eikcore.lib
 LIBRARY eikdlg.lib
 LIBRARY eikcoctl.lib
+LIBRARY eikctl.lib
 LIBRARY eiksrv.lib
 LIBRARY avkon.lib
 LIBRARY aknnotify.lib

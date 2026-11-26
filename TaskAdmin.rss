@@ -15,7 +15,7 @@ RESOURCE TBUF { buf = ""; }
 RESOURCE EIK_APP_INFO
     {
     menubar = r_taskadmin_menubar;
-    cba = R_AVKON_SOFTKEYS_OPTIONS_BACK;
+    cba = R_AVKON_SOFTKEYS_OPTIONS_EXIT;
     }
 
 RESOURCE LOCALISABLE_APP_INFO r_localisable_app_info
@@ -48,23 +48,5 @@ RESOURCE MENU_BAR r_taskadmin_menubar
     titles =
         {
         MENU_TITLE { menu_pane = r_taskadmin_menu; }
-        };
-    }
-
-RESOURCE DIALOG r_taskadmin_select_dialog
-    {
-    flags = EAknDialogSelectionList;
-    buttons = R_AVKON_SOFTKEYS_OPTIONS_BACK;
-    items =
-        {
-        DLG_LINE
-            {
-            type = EAknCtSingleListBox;
-            id = ETaskAdminListBox;
-            control = LISTBOX
-                {
-                flags = EAknListBoxSelectionList;
-                };
-            }
         };
     }
