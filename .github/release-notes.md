@@ -1,4 +1,8 @@
-# TaskAdmin 1.0.2
+# TaskAdmin 1.0.3
+
+Fixes app startup failure: adds missing `NAME TADM`, `RSS_SIGNATURE` and `EIK_APP_INFO` to the resource file so standard resource IDs are generated and Cone/Avkon initializes the application framework cleanly. Uses `BaseConstructL(CAknAppUi::EAknEnableSkin)` and lets `CAknApplication` locate standard `/resource/apps/TaskAdmin.rsc`.
+
+## 1.0.2
 
 Removes `PowerMgmt` from the EXE. A self-signed SISX cannot be granted that
 system capability on an unpatched phone, and the loader then refuses to start

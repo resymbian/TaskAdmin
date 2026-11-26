@@ -111,10 +111,6 @@ class CTaskAdminApplication : public CAknApplication
 public:
     static CApaApplication* NewApplication();
 
-    // The default would look beside the EXE in \sys\bin; our resource is
-    // installed under \resource\apps with the other S60 UI resources.
-    TFileName ResourceFileName() const;
-
 private:
     TUid AppDllUid() const;
     CApaDocument* CreateDocumentL();
@@ -146,12 +142,6 @@ CApaApplication* CTaskAdminApplication::NewApplication()
 TUid CTaskAdminApplication::AppDllUid() const
 {
     return TUid::Uid(0xA0000D16);
-}
-
-TFileName CTaskAdminApplication::ResourceFileName() const
-{
-    // Same basename as the EXE, but in the standard resource directory.
-    return TFileName(_L("\\resource\\apps\\TaskAdmin.rsc"));
 }
 
 CApaDocument* CTaskAdminApplication::CreateDocumentL()
@@ -255,7 +245,7 @@ CTaskAdminAppUi::CTaskAdminAppUi()
 void CTaskAdminAppUi::ConstructL()
 {
     LogLine(_L("construct"));
-    BaseConstructL();
+    BaseConstructL(CAknAppUi::EAknEnableSkin);
     LogLine(_L("base done"));
 
     iCaptions = new (ELeave) CDesCArrayFlat(16);

@@ -1,10 +1,22 @@
 // Application caption and the Options menu for the running-task list.
 
+NAME TADM
+
 #include <appinfo.rh>
 #include <eikon.rh>
 #include <avkon.rh>
 #include <avkon.rsg>
 #include "TaskAdmin.hrh"
+
+RESOURCE RSS_SIGNATURE { }
+
+RESOURCE TBUF { buf = ""; }
+
+RESOURCE EIK_APP_INFO
+    {
+    menubar = r_taskadmin_menubar;
+    cba = R_AVKON_SOFTKEYS_OPTIONS_BACK;
+    }
 
 RESOURCE LOCALISABLE_APP_INFO r_localisable_app_info
     {
