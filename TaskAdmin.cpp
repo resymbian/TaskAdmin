@@ -28,6 +28,7 @@
 #include <akndoc.h>
 #include <aknappui.h>
 #include <apgtask.h>
+#include <apgwgnam.h>
 #include <w32std.h>
 #include <eikstart.h>
 #include <coecntrl.h>
@@ -109,6 +110,7 @@ public:
 private:
     TUid AppDllUid() const;
     CApaDocument* CreateDocumentL();
+    TFileName ResourceFileName() const;
 };
 
 class CTaskAdminDocument : public CAknDocument
@@ -149,8 +151,8 @@ void CTaskAdminContainer::ConstructL(const TRect& aRect, CDesCArrayFlat* aCaptio
     iCaptions = aCaptions;
 
     iListBox = new (ELeave) CAknSingleStyleListBox;
-    iListBox->ConstructL(this, EAknListBoxSelectionList);
     iListBox->SetContainerWindowL(*this);
+    iListBox->ConstructL(this, NULL);
 
     iListBox->CreateScrollBarFrameL(ETrue);
     iListBox->ScrollBarFrame()->SetScrollBarVisibilityL(
@@ -238,6 +240,14 @@ CApaDocument* CTaskAdminApplication::CreateDocumentL()
     return CTaskAdminDocument::NewL(*this);
 }
 
+TFileName CTaskAdminApplication::ResourceFileName() const
+{
+    TFileName resFile;
+    resFile.Copy(_L("\\resource\\apps\\TaskAdmin.rsc"));
+    CompleteWithAppPath(resFile);
+    return resFile;
+}
+
 CTaskAdminDocument* CTaskAdminDocument::NewL(CEikApplication& aApp)
 {
     CTaskAdminDocument* self = NewLC(aApp);
@@ -291,7 +301,17 @@ void CTaskAdminAppUi::ConstructL()
     LogLine(RProcess().HasCapability(ECapabilityPowerMgmt) ?
         _L("powermgmt=yes") : _L("powermgmt=no"));
 
-    RefreshTasksL();
+    TRAPD(refreshErr, RefreshTasksL());
+    if (refreshErr != KErrNone)
+    {
+        TBuf<32> errLine(_L("refresh err="));
+        errLine.AppendNum(refreshErr);
+        LogLine(errLine);
+    }
+    else
+    {
+        LogLine(_L("refresh ok"));
+    }
 
     iContainer = CTaskAdminContainer::NewL(ClientRect(), iCaptions);
     AddToStackL(iContainer);
@@ -363,9 +383,7 @@ void CTaskAdminAppUi::RefreshTasksL()
     iTasks.Reset();
     iCaptions->Reset();
 
-    RWsSession ws;
-    User::LeaveIfError(ws.Connect());
-    CleanupClosePushL(ws);
+    RWsSession& ws = iEikonEnv->WsSession();
 
     TInt count = ws.NumWindowGroups();
     if (count < 1) count = 1;
@@ -380,10 +398,42 @@ void CTaskAdminAppUi::RefreshTasksL()
         TInt wg = groups->At(i);
         if (wg == 0 || wg == self) continue;
 
-        TBuf<KMaxCaptionLength> caption;
-        if (ws.GetWindowGroupNameFromIdentifier(wg, caption) != KErrNone)
+        CApaWindowGroupName* wgName = NULL;
+        TRAPD(wgErr, wgName = CApaWindowGroupName::NewLC(ws, wg));
+        if (wgErr != KErrNone || wgName == NULL) continue;
+
+        if (wgName->Hidden())
+        {
+            CleanupStack::PopAndDestroy(wgName);
             continue;
-        if (caption.Length() == 0) continue;
+        }
+
+        TPtrC caption = wgName->Caption();
+        TBuf<KMaxCaptionLength> safeCaption;
+        if (caption.Length() > 0)
+        {
+            safeCaption.Copy(caption.Left(KMaxCaptionLength));
+        }
+        else
+        {
+            TUid appUid = wgName->AppUid();
+            if (appUid.iUid != 0)
+            {
+                safeCaption.Format(_L("App [0x%08X]"), (TUint)appUid.iUid);
+            }
+            else
+            {
+                safeCaption.Format(_L("Task %d"), wg);
+            }
+        }
+
+        for (TInt c = 0; c < safeCaption.Length(); c++)
+        {
+            if (safeCaption[c] == '\t' || safeCaption[c] == '\n' || safeCaption[c] == '\r')
+            {
+                safeCaption[c] = ' ';
+            }
+        }
 
         TThreadId threadId = 0;
         TUint pid = 0;
@@ -407,21 +457,22 @@ void CTaskAdminAppUi::RefreshTasksL()
         info.iWgId = wg;
         info.iThreadId = threadId;
         info.iPid = pid;
-        info.iCaption.Copy(caption);
+        info.iCaption.Copy(safeCaption);
         info.iProcess.Copy(processName);
         User::LeaveIfError(iTasks.Append(info));
 
-        TBuf<KMaxCaptionLength + 2> itemText(_L("\t"));
-        itemText.Append(caption);
+        TBuf<KMaxCaptionLength + 8> itemText;
+        itemText.Format(_L("\t%S\t\t"), &safeCaption);
         iCaptions->AppendL(itemText);
+
+        CleanupStack::PopAndDestroy(wgName);
     }
 
     CleanupStack::PopAndDestroy(groups);
-    CleanupStack::PopAndDestroy(&ws);
 
     if (iCaptions->Count() == 0)
     {
-        iCaptions->AppendL(_L("\t(No running tasks)"));
+        iCaptions->AppendL(_L("\t(No running tasks)\t\t"));
     }
 
     TBuf<64> line(_L("tasks="));
@@ -603,6 +654,8 @@ static void LogLine(const TDesC& aText)
 {
     RFs fs;
     if (fs.Connect() != KErrNone) return;
+
+    fs.MkDirAll(_L("C:\\Data\\"));
 
     RFile file;
     const TInt KFileMode = EFileRead | EFileWrite | EFileShareAny;
