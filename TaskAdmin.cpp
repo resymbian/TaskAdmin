@@ -110,7 +110,6 @@ public:
 private:
     TUid AppDllUid() const;
     CApaDocument* CreateDocumentL();
-    TFileName ResourceFileName() const;
 };
 
 class CTaskAdminDocument : public CAknDocument
@@ -238,14 +237,6 @@ TUid CTaskAdminApplication::AppDllUid() const
 CApaDocument* CTaskAdminApplication::CreateDocumentL()
 {
     return CTaskAdminDocument::NewL(*this);
-}
-
-TFileName CTaskAdminApplication::ResourceFileName() const
-{
-    TFileName resFile;
-    resFile.Copy(_L("\\resource\\apps\\TaskAdmin.rsc"));
-    CompleteWithAppPath(resFile);
-    return resFile;
 }
 
 CTaskAdminDocument* CTaskAdminDocument::NewL(CEikApplication& aApp)

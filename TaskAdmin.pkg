@@ -1,5 +1,5 @@
 &EN
-#{"TaskAdmin"},(0xA0000D16),1,0,6
+#{"TaskAdmin"},(0xA0000D16),1,0,7
 
 ; S60 3.1 (E51) and S60 3.2.
 [0x102032BE],0,0,0,{"S60ProductID"}
